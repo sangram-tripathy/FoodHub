@@ -22,6 +22,7 @@ const useHttp = (url, config, initialData) => {
 
   const sendRequest = useCallback(
     async function sendRequest(data) {
+    if (!url) return;
     setIsLoading(true);
     try {
       const resData = await sendHttpRequest(url, {...config, body: data});
@@ -33,10 +34,10 @@ const useHttp = (url, config, initialData) => {
   }, [url, config]);
 
   useEffect(() => {
-    if ((config && (config.method === 'GET' || !config.method)) || !config ){
+    if (url && ((config && (config.method === 'GET' || !config.method)) || !config )){
       sendRequest();
     }
-  }, [sendRequest, config]);
+  }, [sendRequest, config, url]);
 
   return { data, isLoading, error, sendRequest ,clearData};
 };

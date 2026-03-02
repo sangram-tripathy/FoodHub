@@ -5,20 +5,25 @@ import { currencyFormatter } from '../util/formatting'
 import Input from './UI/Input'
 import Button from './UI/Button'
 import UserProgressContext from '../store/UserProgressContext'
+import AuthContext from '../store/AuthContext'
 import useHttp from '../hooks/useHttp'
 import Error from './Error'
+import { useToast } from '../store/ToastContext'
 import { API_URL } from '../config'
-
-const requestConfig={
-    method :'POST',
-    headers : {
-        'Content-Type' : 'application/json'
-    }
-}
 
 const Checkout = () => {
      const cartCtx =useContext(CartContext)
      const userProgressCtx =useContext(UserProgressContext)
+     const authCtx = useContext(AuthContext)
+     const { showToast } = useToast()
+
+     const requestConfig={
+        method :'POST',
+        headers : {
+            'Content-Type' : 'application/json',
+            ...(authCtx.token && { 'Authorization': `Bearer ${authCtx.token}` })
+        }
+    }
 
     const {data, isLoading:isSending ,error,sendRequest,clearData}= useHttp(`${API_URL}/orders`,requestConfig)
 
@@ -38,14 +43,19 @@ const Checkout = () => {
        
         const customerData = Object.fromEntries(fd.entries());
 
-        await sendRequest(JSON.stringify({
+        const result = await sendRequest(JSON.stringify({
                 order:{
                     items :cartCtx.items,
-                    customer: customerData
+                    customer: customerData,
+                    totalAmount: cartTotal
                 },
 
             })
         );
+        
+        if (!result || !result.error) {
+          showToast('Order placed successfully!', 'success');
+        }
 
     }
     let actions = (

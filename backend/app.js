@@ -4,6 +4,8 @@ import express from 'express';
 import connectDB from './config/db.js';
 import Meal from './models/Meal.js';
 import Order from './models/Order.js';
+import authRoutes from './routes/auth.js';
+import { protect } from './middleware/auth.js';
 
 dotenv.config();
 connectDB();
@@ -15,10 +17,13 @@ app.use(express.static('public'));
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   next();
 });
+
+// Auth routes
+app.use('/auth', authRoutes);
 
 app.get('/meals', async (req, res) => {
   try {
@@ -57,11 +62,48 @@ app.post('/orders', async (req, res) => {
   }
 
   try {
-    const newOrder = new Order(orderData);
+    // Get user ID from token if available
+    const token = req.headers.authorization?.split(' ')[1];
+    let userId = null;
+    
+    if (token) {
+      try {
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+        userId = decoded.id;
+      } catch (err) {
+        // Token invalid or expired, continue without user ID
+      }
+    }
+
+    const newOrder = new Order({
+      ...orderData,
+      user: userId,
+      totalAmount: orderData.totalAmount
+    });
     await newOrder.save();
-    res.status(201).json({ message: 'Order created!' });
+    res.status(201).json({ message: 'Order created!', orderId: newOrder._id });
   } catch (error) {
     res.status(500).json({ message: 'Failed to create order', error: error.message });
+  }
+});
+
+// Get user's order history
+app.get('/orders/my-orders', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Please login to view orders' });
+    }
+
+    const jwt = await import('jsonwebtoken');
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+    
+    const orders = await Order.find({ user: decoded.id }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch orders', error: error.message });
   }
 });
 
